@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity 0.7.6;
 
 import "./_external/SafeMath.sol";
@@ -42,6 +43,7 @@ contract UFragments is ERC20Detailed, Ownable {
 
     // Used for authentication
     address public monetaryPolicy;
+    uint256 public rebaseStartTime;
 
     modifier onlyMonetaryPolicy() {
         require(msg.sender == monetaryPolicy);
@@ -57,13 +59,20 @@ contract UFragments is ERC20Detailed, Ownable {
         _;
     }
 
+    modifier onlyAfterRebaseStart() {
+        require(block.timestamp >= rebaseStartTime);
+        _;
+    }
+
     uint256 private constant DECIMALS = 9;
     uint256 private constant MAX_UINT256 = type(uint256).max;
-    uint256 private constant INITIAL_FRAGMENTS_SUPPLY = 50 * 10**6 * 10**DECIMALS;
+    uint256 private constant INITIAL_FRAGMENTS_SUPPLY =
+        50 * 10**6 * 10**DECIMALS;
 
     // TOTAL_GONS is a multiple of INITIAL_FRAGMENTS_SUPPLY so that _gonsPerFragment is an integer.
     // Use the highest value that fits in a uint256 for max granularity.
-    uint256 private constant TOTAL_GONS = MAX_UINT256 - (MAX_UINT256 % INITIAL_FRAGMENTS_SUPPLY);
+    uint256 private constant TOTAL_GONS =
+        MAX_UINT256 - (MAX_UINT256 % INITIAL_FRAGMENTS_SUPPLY);
 
     // MAX_SUPPLY = maximum integer < (sqrt(4*TOTAL_GONS + 1) - 1) / 2
     uint256 private constant MAX_SUPPLY = type(uint128).max; // (2^128) - 1
@@ -107,6 +116,7 @@ contract UFragments is ERC20Detailed, Ownable {
     function rebase(uint256 epoch, int256 supplyDelta)
         external
         onlyMonetaryPolicy
+        onlyAfterRebaseStart
         returns (uint256)
     {
         if (supplyDelta == 0) {
@@ -141,10 +151,16 @@ contract UFragments is ERC20Detailed, Ownable {
         return _totalSupply;
     }
 
-    function initialize(address owner_) public override initializer {
-        ERC20Detailed.initialize("Ampleforth", "AMPL", uint8(DECIMALS));
+    constructor(
+        string memory name_,
+        string memory symbol_,
+        address owner_,
+        uint256 rebaseStartTime_
+    ) public {
+        ERC20Detailed.initialize(name_, symbol_, uint8(DECIMALS));
         Ownable.initialize(owner_);
 
+        rebaseStartTime = rebaseStartTime_;
         rebasePausedDeprecated = false;
         tokenPausedDeprecated = false;
 
@@ -240,7 +256,11 @@ contract UFragments is ERC20Detailed, Ownable {
      * @param to The address to transfer to.
      * @return True on success, false otherwise.
      */
-    function transferAll(address to) external validRecipient(to) returns (bool) {
+    function transferAll(address to)
+        external
+        validRecipient(to)
+        returns (bool)
+    {
         uint256 gonValue = _gonBalances[msg.sender];
         uint256 value = gonValue.div(_gonsPerFragment);
 
@@ -257,7 +277,12 @@ contract UFragments is ERC20Detailed, Ownable {
      * @param spender The address which will spend the funds.
      * @return The number of tokens still available for the spender.
      */
-    function allowance(address owner_, address spender) external view override returns (uint256) {
+    function allowance(address owner_, address spender)
+        external
+        view
+        override
+        returns (uint256)
+    {
         return _allowedFragments[owner_][spender];
     }
 
@@ -272,7 +297,10 @@ contract UFragments is ERC20Detailed, Ownable {
         address to,
         uint256 value
     ) external override validRecipient(to) returns (bool) {
-        _allowedFragments[from][msg.sender] = _allowedFragments[from][msg.sender].sub(value);
+        _allowedFragments[from][msg.sender] = _allowedFragments[from][
+            msg.sender
+        ]
+        .sub(value);
 
         uint256 gonValue = value.mul(_gonsPerFragment);
         _gonBalances[from] = _gonBalances[from].sub(gonValue);
@@ -287,11 +315,18 @@ contract UFragments is ERC20Detailed, Ownable {
      * @param from The address you want to send tokens from.
      * @param to The address you want to transfer to.
      */
-    function transferAllFrom(address from, address to) external validRecipient(to) returns (bool) {
+    function transferAllFrom(address from, address to)
+        external
+        validRecipient(to)
+        returns (bool)
+    {
         uint256 gonValue = _gonBalances[from];
         uint256 value = gonValue.div(_gonsPerFragment);
 
-        _allowedFragments[from][msg.sender] = _allowedFragments[from][msg.sender].sub(value);
+        _allowedFragments[from][msg.sender] = _allowedFragments[from][
+            msg.sender
+        ]
+        .sub(value);
 
         delete _gonBalances[from];
         _gonBalances[to] = _gonBalances[to].add(gonValue);
@@ -311,7 +346,11 @@ contract UFragments is ERC20Detailed, Ownable {
      * @param spender The address which will spend the funds.
      * @param value The amount of tokens to be spent.
      */
-    function approve(address spender, uint256 value) external override returns (bool) {
+    function approve(address spender, uint256 value)
+        external
+        override
+        returns (bool)
+    {
         _allowedFragments[msg.sender][spender] = value;
 
         emit Approval(msg.sender, spender, value);
@@ -325,12 +364,20 @@ contract UFragments is ERC20Detailed, Ownable {
      * @param spender The address which will spend the funds.
      * @param addedValue The amount of tokens to increase the allowance by.
      */
-    function increaseAllowance(address spender, uint256 addedValue) public returns (bool) {
-        _allowedFragments[msg.sender][spender] = _allowedFragments[msg.sender][spender].add(
-            addedValue
-        );
+    function increaseAllowance(address spender, uint256 addedValue)
+        public
+        returns (bool)
+    {
+        _allowedFragments[msg.sender][spender] = _allowedFragments[msg.sender][
+            spender
+        ]
+        .add(addedValue);
 
-        emit Approval(msg.sender, spender, _allowedFragments[msg.sender][spender]);
+        emit Approval(
+            msg.sender,
+            spender,
+            _allowedFragments[msg.sender][spender]
+        );
         return true;
     }
 
@@ -340,13 +387,20 @@ contract UFragments is ERC20Detailed, Ownable {
      * @param spender The address which will spend the funds.
      * @param subtractedValue The amount of tokens to decrease the allowance by.
      */
-    function decreaseAllowance(address spender, uint256 subtractedValue) external returns (bool) {
+    function decreaseAllowance(address spender, uint256 subtractedValue)
+        external
+        returns (bool)
+    {
         uint256 oldValue = _allowedFragments[msg.sender][spender];
         _allowedFragments[msg.sender][spender] = (subtractedValue >= oldValue)
             ? 0
             : oldValue.sub(subtractedValue);
 
-        emit Approval(msg.sender, spender, _allowedFragments[msg.sender][spender]);
+        emit Approval(
+            msg.sender,
+            spender,
+            _allowedFragments[msg.sender][spender]
+        );
         return true;
     }
 
@@ -372,10 +426,19 @@ contract UFragments is ERC20Detailed, Ownable {
         require(block.timestamp <= deadline);
 
         uint256 ownerNonce = _nonces[owner];
-        bytes32 permitDataDigest =
-            keccak256(abi.encode(PERMIT_TYPEHASH, owner, spender, value, ownerNonce, deadline));
-        bytes32 digest =
-            keccak256(abi.encodePacked("\x19\x01", DOMAIN_SEPARATOR(), permitDataDigest));
+        bytes32 permitDataDigest = keccak256(
+            abi.encode(
+                PERMIT_TYPEHASH,
+                owner,
+                spender,
+                value,
+                ownerNonce,
+                deadline
+            )
+        );
+        bytes32 digest = keccak256(
+            abi.encodePacked("\x19\x01", DOMAIN_SEPARATOR(), permitDataDigest)
+        );
 
         require(owner == ecrecover(digest, v, r, s));
 
