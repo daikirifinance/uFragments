@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity 0.7.6;
 
 import "./_external/SafeMath.sol";
@@ -230,15 +231,14 @@ contract UFragmentsPolicy is Ownable {
     }
 
     /**
-     * @dev ZOS upgradable contract initialization method.
-     *      It is called at the time of contract creation to invoke parent class initializers and
-     *      initialize the contract's state variables.
+     * @dev initialize the contract's state variables.
+     *      
      */
-    function initialize(
+    constructor(
         address owner_,
         IUFragments uFrags_,
         uint256 baseCpi_
-    ) public initializer {
+    ) public {
         Ownable.initialize(owner_);
 
         // deviationThreshold = 0.05e18 = 5e16
